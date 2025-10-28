@@ -1,0 +1,25 @@
+---
+title: "Digital Soil Mapping"
+author: "Leandra Stengele"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(knitr)
+library(here)
+```
+
+FOLGENDER CODE FUNKTIONIERT NICHT, WEIL WIR DAS .CSV NICHT HABEN! AB KAP. 4 HABEN WIR ALLES UND AB DA MACHT ES SINN DEN CODE RÜBER ZU KOPIEREN. ALLES VORHER IS DATA WRANGLING
+```{r}
+# Load soil data from sampling locations
+df_obs <- readr::read_csv(
+  here::here("data-raw/soildata/berne_soil_sampling_locations.csv")
+  )
+
+# Display data
+head(df_obs) |> 
+  knitr::kable()
+```

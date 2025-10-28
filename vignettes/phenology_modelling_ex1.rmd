@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE) 
 ```
 
 ## initiating Git
@@ -33,6 +33,8 @@ library(tidyverse)
 library(dplyr)
 library(GenSA)
 library(terra)
+library(zoo)
+library(lubridate)
 ```
 
 
@@ -54,6 +56,21 @@ harvard_phenocam_data <- readr::read_csv(
   file.path(tempdir(), "harvard_DB_1000_3day.csv"), 
   comment = "#"
 )
+
+# reading in harvard phenology only retaining
+# spring (rising) phenology for the GCC 90th
+# percentile time series (the default)
+harvard_phenology <- readr::read_csv(
+  file.path(
+    tempdir(),
+    "harvard_DB_1000_3day_transition_dates.csv"
+    ),
+  comment = "#"
+) |>
+  dplyr::filter(
+    direction == "rising",
+    gcc_value == "gcc_90"
+  )
 ```
 Comment on Code: The :: in "phenocamr::download_phenocam" specifies where the "download_phenocam" comes from. (idk about this example but) this is very important in terms of shadowing. When theres e.g. the Fn Filter() which is contained in the packages dplyr and Stats and i have loaded both packages, it is unclear from which package i wanna take the filter() fn. therefore i do dplyr::filter().
 
@@ -87,7 +104,7 @@ ggplot(harvard_phenocam_data) +
 ```
 
 
-implement GDD Fn (cumulative sum of temperatures above Threshhold T0 = 5°C) --> but not done with an actual Fn in R --> Improvement?
+implement GDD Fn (cumulative sum of temperatures above Threshhold T0 = 5°C) --> but not done with an actual Fn in R
 ```{r}
 # return mean daily temperature as well
 # as formal dates (for plotting)
@@ -97,6 +114,8 @@ harvard_temp <- harvard_phenocam_data |>
     tmean = (tmax..deg.c. + tmin..deg.c.)/2
   ) |> 
   dplyr::mutate(
+    # Compute 31-day centered moving average of tmean
+    tmean_31d = zoo::rollmean(tmean, k = 31, fill = NA, align = "center"),
     date = as.Date(date),
     gdd = cumsum(ifelse(tmean >= 5, tmean - 5, 0))
   ) |>

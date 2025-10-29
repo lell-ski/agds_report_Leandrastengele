@@ -34,7 +34,6 @@ library(dplyr)
 library(GenSA)
 library(terra)
 library(zoo)
-library(lubridate)
 ```
 
 
@@ -114,8 +113,6 @@ harvard_temp <- harvard_phenocam_data |>
     tmean = (tmax..deg.c. + tmin..deg.c.)/2
   ) |> 
   dplyr::mutate(
-    # Compute 31-day centered moving average of tmean
-    tmean_31d = zoo::rollmean(tmean, k = 31, fill = NA, align = "center"),
     date = as.Date(date),
     gdd = cumsum(ifelse(tmean >= 5, tmean - 5, 0))
   ) |>
@@ -262,12 +259,20 @@ p + p2 +
 
 # 6.3 Growing degree day model optimization
 Our GDD-based leaf-out model can be written in the form of a function that takes the temperature time series as its first argument, and as two parameters the temperature threshold above which temperatures are accumulated, and the critical GDD that determines the DOY at which leaf-out is predicted.
+DO I GET AN ISSUE WHEN I USE INDICES OF TEMP BC ITS MORE THAN 1 TEMP PER DAY?
 ```{r}
 gdd_model <- function(temp, par) {
+  #print(head(temp))
   # split out parameters from a simple
   # vector of parameter values
   temp_threshold <- par[1]
   gdd_crit <- par[2]
+  # weights
+  #weight_factor <- par[3]
+  #day_idx <- 1:length(temp)
+  #specific_weight <- weight_factor*day_idx
+  
+  
   
   # accumulate growing degree days for
   # temperature data
@@ -281,6 +286,8 @@ gdd_model <- function(temp, par) {
   
   return(doy)
 }
+
+
 ```
 
 Running the model on the original 2010 data with the previously observed values and parameters 5C for the temperature threshold and 130.44C for the critical GDD, should yield a predicted leaf-out date that matches the observed leaf-out date of 114.

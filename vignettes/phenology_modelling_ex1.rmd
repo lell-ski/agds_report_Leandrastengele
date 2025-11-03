@@ -33,7 +33,7 @@ library(tidyverse)
 library(dplyr)
 library(GenSA)
 library(terra)
-library(zoo)
+#library(zoo)
 ```
 
 
@@ -103,7 +103,7 @@ ggplot(harvard_phenocam_data) +
 ```
 
 
-implement GDD Fn (cumulative sum of temperatures above Threshhold T0 = 5°C) --> but not done with an actual Fn in R
+implement GDD Fn (cumulative sum of temperatures above Threshhold T0 = 5°C)
 ```{r}
 # return mean daily temperature as well
 # as formal dates (for plotting)
@@ -259,24 +259,26 @@ p + p2 +
 
 # 6.3 Growing degree day model optimization
 Our GDD-based leaf-out model can be written in the form of a function that takes the temperature time series as its first argument, and as two parameters the temperature threshold above which temperatures are accumulated, and the critical GDD that determines the DOY at which leaf-out is predicted.
-DO I GET AN ISSUE WHEN I USE INDICES OF TEMP BC ITS MORE THAN 1 TEMP PER DAY?
 ```{r}
 gdd_model <- function(temp, par) {
-  #print(head(temp))
+  #print(length(temp))
   # split out parameters from a simple
   # vector of parameter values
   temp_threshold <- par[1]
   gdd_crit <- par[2]
   # weights
-  #weight_factor <- par[3]
-  #day_idx <- 1:length(temp)
-  #specific_weight <- weight_factor*day_idx
+  weight_factor <- par[3]
+  day_idx <- c(1:length(temp))
+  print(head(day_idx))
+  specific_weight <- c(weight_factor*day_idx)
+  print(head(specific_weight))
   
   
   
   # accumulate growing degree days for
   # temperature data
-  gdd <- cumsum(ifelse(temp > temp_threshold, temp - temp_threshold, 0))
+  gdd <- cumsum((ifelse(temp > temp_threshold, temp - temp_threshold, 0))*specific_weight)
+  print((gdd))
   
   # figure out when the number of growing
   # degree days exceeds the minimum value
@@ -305,7 +307,7 @@ prediction <- harvard_temp |>
   summarize(
     pred = gdd_model(
       temp = tmean,
-      par = c(5, 130.44)
+      par = c(5, 130.44, 0.01)
     )  
   )
 print(prediction)
@@ -348,11 +350,11 @@ rmse_gdd <- function(par, data) {
 Defining the limits of the parameter space well can significantly reduce the time needed to converge on a solution
 ```{r}
 # starting model parameters
-par = c(0, 130)
+par = c(0, 130, 0)
 
 # limits to the parameter space
-lower <- c(-10,0)
-upper <- c(45,500)
+lower <- c(-10,0,0)
+upper <- c(45,500,1)
 
 # data needs to be provided in a consistent
 # single data file, a nested data structure

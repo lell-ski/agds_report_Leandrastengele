@@ -38,15 +38,15 @@ library(terra)
 # download greenness time series,
 # calculate phenology (phenophases),
 # amend with DAYMET data
-phenocamr::download_phenocam(
-  site = "harvard$",
-  veg_type = "DB",
-  roi_id = "1000",
-  daymet = TRUE,
-  phenophase = TRUE,
-  trim = 2022,
-  out_dir = tempdir()
-)
+# phenocamr::download_phenocam(
+#   site = "harvard$",
+#   veg_type = "DB",
+#   roi_id = "1000",
+#   daymet = TRUE,
+#   phenophase = TRUE,
+#   trim = 2022,
+#   out_dir = "../data-raw/"
+# )
 
 harvard_phenocam_data <- readr::read_csv(
   file.path(tempdir(), "harvard_DB_1000_3day.csv"), 

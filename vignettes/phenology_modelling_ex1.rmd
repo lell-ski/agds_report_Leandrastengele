@@ -9,10 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE) 
 ```
 
-## initiating Git
-```{r}
-usethis::use_git()    
-```
+
 Error in libgit2::git_signature_default : 
   config value 'user.name' was not found
 --> Resolved with: usethis::use_git_config(user.name = "lell-ski", user.email = "196680295+lell-ski@users.noreply.github.com")

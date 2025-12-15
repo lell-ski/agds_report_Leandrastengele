@@ -15,6 +15,8 @@ library(readr)
 library(knitr)
 library(here)
 library(Boruta)
+library(caret)
+library(pROC)
 ```
 
 
@@ -78,7 +80,7 @@ Although we only used the pre-defined parameters, we already get a fairly good o
 *This is the step at which you may want to reduce the number of predictors_all to avoid collinearity and the risk of overfitting.*
 
 ## 3.4 Variable importance
-```{r}
+```{r fig.height=18}
 # Let's run the basic model again but with recording the variable importance
 rf_basic <- ranger::ranger( 
   y = df_train[, target],     # target variable
@@ -111,7 +113,7 @@ We find that the mean annual precipitation is by far the most important variable
 ## 3.5 Variable selection
 
 the “Boruta-Algorithm” - an effective and popular approach to variable selection
-```{r}
+```{r fig.height=18}
 set.seed(42)
 
 # run the algorithm
@@ -186,7 +188,7 @@ saveRDS(df_test[, c(target, predictors_selected)],
 
 
 
-### 5 Report Exercise
+# 5 Report Exercise
 ## 5.1 Simple model
 
 - Specify target and predictor variables (predictors: only vbls we have spatial coverage)
@@ -211,59 +213,108 @@ df_train_wa <- df_full |> dplyr::filter(dataset == "calibration")
 df_test_wa  <- df_full |> dplyr::filter(dataset == "validation")
 
 # Make sure that the categorical target variable is encoded as a factor using the function factor()
-df_train[[target_wa]] <- factor(df_train[[target_wa]])
-df_test[[target_wa]]  <- factor(df_test[[target_wa]])
+df_train_wa[[target_wa]] <- factor(df_train_wa[[target_wa]])
+df_test_wa[[target_wa]]  <- factor(df_test_wa[[target_wa]])
 
 # Filter out any NA to avoid error when running a Random Forest
-df_train <- df_train |> tidyr::drop_na()
-df_test <- df_test   |> tidyr::drop_na()
+df_train_wa <- df_train_wa |> tidyr::drop_na()
+df_test_wa <- df_test_wa   |> tidyr::drop_na()
+
 
 # A little bit of verbose output:
-n_tot <- nrow(df_train) + nrow(df_test)
+n_tot_wa <- nrow(df_train_wa) + nrow(df_test_wa)
 
 # save target and predictor vale for easy access later
-perc_cal <- (nrow(df_train) / n_tot) |> round(2) * 100
-perc_val <- (nrow(df_test)  / n_tot) |> round(2) * 100
+perc_cal_wa <- (nrow(df_train_wa) / n_tot_wa) |> round(2) * 100
+perc_val_wa <- (nrow(df_test_wa)  / n_tot_wa) |> round(2) * 100
 
 cat("For model training, we have a calibration / validation split of: ",
-    perc_cal, "/", perc_val, "%")
+    perc_cal_wa, "/", perc_val_wa, "%")
 ```
 
-## 3.3 Model training
+
+## Model training
 The modelling task is to predict the soil pH in the top 10 cm. Let’s start using the default hyperparameters used by ranger::ranger().
 
 ```{r}
 # ranger() crashes when using tibbles, so we are using the
 # base R notation to enter the data
-rf_basic <- ranger::ranger( 
-  y = df_train[, target],     # target variable
-  x = df_train[, predictors_all], # Predictor variables
+rf_basic_wa <- ranger::ranger( 
+  y = df_train_wa[, target_wa, drop = T],     # target variable; drop = T to ensure i get Vectors
+  x = df_train_wa[, predictors_all], # Predictor variables
   seed = 42,                    # Specify the seed for randomization to reproduce the same model again
   num.threads = parallel::detectCores() - 1) # Use all but one CPU core for quick model training
 
 # Print a summary of fitted model
-print(rf_basic)
+print(rf_basic_wa)
 ```
-Although we only used the pre-defined parameters, we already get a fairly good out-of-bag (OOB) of 0.45 and a MSE of 0.32 pH units. 
+Although we only used the pre-defined parameters, we already get a fairly good out-of-bag (OOB) of 0.45 and a MSE of 0.32 pH units. --> NOT SO GOOD ANYMORE FOR WATERLOG
 *This is the step at which you may want to reduce the number of predictors_all to avoid collinearity and the risk of overfitting.*
 
-## 3.4 Variable importance
+
+# Evaluate simple model (Ch. 9.4.1.2)
 ```{r}
+# Predictions on test set
+pred_test_wa <- predict(              # predict() returns a prediction obj (not just a vector), which contains i.a. $predictions which is made of 0 (not waterlogged) and 1 (waterlogged)
+  rf_basic_wa,                        # the model (my model) that ranger applies
+  data = df_test_wa[, predictors_all] # input data are x (pred) from the test dataset
+)
+
+
+## EVALUATION
+# store the waterlog predicitons (0/1) in a separate obj
+pred_class_wa <- pred_test_wa$predictions 
+
+# extract the true observed values (0/1) from the test dataset
+obs_class_wa <- df_test_wa[[target_wa]] # [[ ]] to extract the column as a vector (not as a 1-column df)
+
+# Confusion matrix
+cm_wa <- table(observed = obs_class_wa, predicted = pred_class_wa)
+cm_wa
+#    0  1
+# 0 TN FP
+# 1 FN TP
+
+TP <- cm_wa["1", "1"]
+FN <- cm_wa["1", "0"]
+FP <- cm_wa["0", "1"]
+TN <- cm_wa["0", "0"]
+
+# calculate metrics
+accuracy_wa  <- (TP + TN) / (TP + TN + FP + FN)
+precision_wa <- TP / (TP + FP)
+TPR_wa       <- TP / (TP + FN)
+FPR_wa       <- FP / (FP + TN)
+
+metrics_wa <- c(
+  accuracy_wa = accuracy_wa,
+  precision_wa = precision_wa,
+  TPR_wa = TPR_wa,
+  FPR_wa = FPR_wa
+  
+)
+metrics_wa
+```
+*Interpretation: In the confusion matrix we see 70 observed values that are waterlogged (TRUE) and 130 observations that are not waterlogged (FALSE). So TRUE and FALSE are not well balanced. This is 35% True vs. 65% False. This imbalance restricts the comparison of our accuarcy with a random model with acccuarcy 0.5 because this would assume that both cases (T/F) are equally likely to appear. Just predicting the majority class would already lead to an accuracy of 65% and our model reaches 76.5% which isn't that much better. The precision tells us that in 65.7% of predicted waterlogged (true), it is correct. The TPR tells us that among the observed waterlogged sites, we detected 68.5% correctly. From FPR we know that we marked 19% of the sites that are actually not waterlogged (F) incorrectly as waterlogged (T). However, it is important to state that due to the imbalance in observed T/F we should be careful when interpreting the metrics, especially when making interpretations about the True (waterlogged) class, since it is much rarer than the False class.*
+
+### Task 5.2 Variable selection
+## Variable importance
+```{r fig.height=18}
 # Let's run the basic model again but with recording the variable importance
-rf_basic <- ranger::ranger( 
-  y = df_train[, target],     # target variable
-  x = df_train[, predictors_all],   # Predictor variables
+rf_basic_wa <- ranger::ranger( 
+  y = df_train_wa[, target_wa],     # target variable
+  x = df_train_wa[, predictors_all],   # Predictor variables
   importance   = "permutation", # Pick permutation to calculate variable importance
   seed = 42,                    # Specify seed for randomization to reproduce the same model again
   num.threads = parallel::detectCores() - 1) # Use all but one CPU core for quick model training
 
 # Extract the variable importance and create a long tibble
-vi_rf_basic <- rf_basic$variable.importance |>
+vi_rf_basic_wa <- rf_basic_wa$variable.importance |>
   dplyr::bind_rows() |> 
   tidyr::pivot_longer(cols = dplyr::everything(), names_to = "variable")
 
 # Plot variable importance, ordered by decreasing value
-gg <- vi_rf_basic |> 
+gg_wa <- vi_rf_basic_wa |> 
   ggplot2::ggplot(ggplot2::aes(x = reorder(variable, value), y = value)) +
   ggplot2::geom_bar(stat = "identity", fill = "grey50", width = 0.75) + 
   ggplot2::labs(
@@ -274,25 +325,25 @@ gg <- vi_rf_basic |>
   ggplot2::coord_flip()
 
 # Display plot
-gg
+plot(gg_wa)
 ```
-We find that the mean annual precipitation is by far the most important variable in determining soil pH in our model.
+We find that ????????????????? the mean annual precipitation is by far the most important variable in determining soil pH in our model.
 
-## 3.5 Variable selection
+## Variable (predictor) selection
 
 the “Boruta-Algorithm” - an effective and popular approach to variable selection
-```{r}
+```{r fig.height=18}
 set.seed(42)
 
 # run the algorithm
-bor <- Boruta::Boruta(
-    y = df_train[, target], 
-    x = df_train[, predictors_all],
+bor_wa <- Boruta::Boruta(
+    y = df_train_wa[, target_wa], 
+    x = df_train_wa[, predictors_all],
     maxRuns = 30, # Number of iterations. Set to 30 or lower if it takes too long
     num.threads = parallel::detectCores()-1)
 
 # obtain results: a data frame with all variables, ordered by their importance
-df_bor <- Boruta::attStats(bor) |> 
+df_bor_wa <- Boruta::attStats(bor_wa) |> 
   tibble::rownames_to_column() |> 
   dplyr::arrange(dplyr::desc(meanImp))
 
@@ -300,7 +351,7 @@ df_bor <- Boruta::attStats(bor) |>
 ggplot2::ggplot(ggplot2::aes(x = reorder(rowname, meanImp), 
                              y = meanImp,
                              fill = decision), 
-                data = df_bor) +
+                data = df_bor_wa) +
   ggplot2::geom_bar(stat = "identity", width = 0.75) + 
   ggplot2::scale_fill_manual(values = c("grey30", "tomato", "grey70")) + 
   ggplot2::labs(
@@ -313,26 +364,231 @@ ggplot2::ggplot(ggplot2::aes(x = reorder(rowname, meanImp),
 
 ```{r}
 # get retained important variables
-predictors_selected <- df_bor |> 
+predictors_selected_wa <- df_bor_wa |> 
   dplyr::filter(decision == "Confirmed") |>
   dplyr::pull(rowname)
 
-length(predictors_selected)
+length(predictors_selected_wa)
 ```
 
 ```{r}
 # re-train Random Forest model
-rf_bor <- ranger::ranger( 
-  y = df_train[, target],              # target variable
-  x = df_train[, predictors_selected], # Predictor variables
+rf_wa_bor <- ranger::ranger( 
+  y = df_train_wa[, target_wa],              # target variable
+  x = df_train_wa[, predictors_selected_wa], # Predictor variables
   seed = 42,                           # Specify the seed for randomization to reproduce the same model again
   num.threads = parallel::detectCores() - 1) # Use all but one CPU core for quick model training
 
 # quick report and performance of trained model object
-rf_bor
+rf_wa_bor
 ```
-Save the model object with the reduced set of predictors_all, calibration, and validation data for the subsequent Chapter.
+...OOB wurde aber nicht besser!!! (=R^2), sollte steigen
+
+# Repeat the model evaluation (Ch. 9.4.1.2)
 ```{r}
+# Predictions on test set
+pred_test_wa_bor <- predict(              # predict() returns a prediction obj (not just a vector), which contains i.a. $predictions which is made of 0 (not waterlogged) and 1 (waterlogged)
+  rf_wa_bor,                        # the model (my model) that ranger applies
+  data = df_test_wa[, predictors_selected_wa] # input data are x (pred) from the test dataset
+)
+
+
+## EVALUATION
+# store the waterlog predicitons (0/1) in a separate obj
+pred_class_wa_bor <- pred_test_wa_bor$predictions 
+
+# extract the true observed values (0/1) from the test dataset
+obs_class_wa <- df_test_wa[[target_wa]] # [[ ]] to extract the column as a vector (not as a 1-column df)
+
+# Confusion matrix
+cm_wa_bor <- table(observed = obs_class_wa, predicted = pred_class_wa_bor)
+cm_wa_bor
+#    0  1
+# 0 TN FP
+# 1 FN TP
+
+TP_bor <- cm_wa_bor["1", "1"]
+FN_bor <- cm_wa_bor["1", "0"]
+FP_bor <- cm_wa_bor["0", "1"]
+TN_bor <- cm_wa_bor["0", "0"]
+
+# calculate metrics
+accuracy_wa_bor  <- (TP_bor + TN_bor) / (TP_bor + TN_bor + FP_bor + FN_bor)
+precision_wa_bor <- TP_bor / (TP_bor + FP_bor)
+TPR_wa_bor       <- TP_bor / (TP_bor + FN_bor)
+FPR_wa_bor       <- FP_bor / (FP_bor + TN_bor)
+
+metrics_wa_bor <- c(
+  accuracy_wa_bor = accuracy_wa_bor,
+  precision_wa_bor = precision_wa_bor,
+  TPR_wa_bor = TPR_wa_bor,
+  FPR_wa_bor = FPR_wa_bor
+  
+)
+metrics_wa_bor
+```
+
+## 5.3 Model optimization
+### 5.3.1 5-fold cross-validation
+
+```{r}
+pp_wa <- recipes::recipe(
+  stats::as.formula(
+    paste(target_wa, "~", paste(predictors_selected_wa, collapse = " + "))), # instead of writing out all 37 selected predictors (target_wa~p1+p2+...+p37)
+  data = df_train_wa
+) |>
+  recipes::step_center(recipes::all_numeric(), -recipes::all_outcomes()) |>
+  recipes::step_scale(recipes::all_numeric(), -recipes::all_outcomes())
+
+
+set.seed(42)
+mod_cv_wa <- caret::train(
+  pp_wa,
+  data = df_train_wa |> tidyr::drop_na(),
+  method = "ranger",
+  trControl = caret::trainControl(method = "cv", number = 5, savePredictions = "final"),
+  tuneGrid = expand.grid(
+    .mtry = c(4, floor(sqrt(length(predictors_selected_wa))), 8), # floor(sqrt(length(predictors_selected_wa))) is what the agds book suggests (sqrt(p))
+    .min.node.size = c(1, 3, 5, 8, 10, 15, 20),  # 1 = danger of overfit
+    .splitrule = "gini"       # classification
+  ),
+  metric = "Accuracy",        # loss function for classification
+  num.trees = 2000,            # enough trees for tuning
+  seed = 42                 # reproducibility, like in the book
+)
+ggplot(mod_cv_wa)
+```
+*Comment: For the optimization of mtry, the values c(4, sqrt(p), 8) were used where sqrt(p) ~= 6 which is the approach the agds book proposes. for the min.node.size the values c(1, 3, 5, 8, 10, 15, 20) were chosen for optimization. Splitrule = "gini" and metric = "Accuracy" were used for the classification purpose.The final values used for the model with 2000 trees were mtry = 6, splitrule = gini and min.node.size = 8. The accuracy of this best combination is 0.7982814. In the most recent plot there is no clear pattern visible for the different mtry values which leads to the assumption that the model is not really sensitive to the number of predictors selected. However, mtry=6 seems to be the best choice for most node sizes at least in most of the cases.*
+
+
+### 5.3.2 Evaluation
+```{r}
+# Predictions on the test set
+pred_test_cv_wa <- predict(
+  mod_cv_wa,
+  newdata = df_test_wa[, predictors_selected_wa]
+)
+
+# store predictions (factor "0"/"1")
+pred_class_cv_wa <- pred_test_cv_wa
+
+# observed test classes
+obs_class_cv_wa <- df_test_wa[[target_wa]]
+
+# Confusion matrix
+cm_cv_wa <- table(observed = obs_class_cv_wa, predicted = pred_class_cv_wa)
+cm_cv_wa
+#      predicted
+# observed   0   1
+#        0  TN  FP
+#        1  FN  TP
+
+# extract TP, FP, TN, FN (class "1" = waterlogged)
+TP_cv_wa <- cm_cv_wa["1", "1"]
+FN_cv_wa <- cm_cv_wa["1", "0"]
+FP_cv_wa <- cm_cv_wa["0", "1"]
+TN_cv_wa <- cm_cv_wa["0", "0"]
+
+# metrics
+accuracy_cv_wa  <- (TP_cv_wa + TN_cv_wa) / (TP_cv_wa + TN_cv_wa + FP_cv_wa + FN_cv_wa)
+precision_cv_wa <- TP_cv_wa / (TP_cv_wa + FP_cv_wa)
+TPR_cv_wa       <- TP_cv_wa / (TP_cv_wa + FN_cv_wa)          # sensitivity / recall
+FPR_cv_wa       <- FP_cv_wa / (FP_cv_wa + TN_cv_wa)
+
+metrics_cv_wa <- c(
+  accuracy_cv_wa  = accuracy_cv_wa,
+  precision_cv_wa = precision_cv_wa,
+  TPR_cv_wa       = TPR_cv_wa,
+  FPR_cv_wa       = FPR_cv_wa
+)
+
+print(metrics_cv_wa)   # optimized
+print(metrics_wa_bor)  # before optimization
+print(metrics_wa)      # initial default model
+```
+
+```{r}
+# get a better overview to compare the models
+metrics_all <- rbind(
+  metrics_cv_wa = unname(metrics_cv_wa),
+  metrics_wa_bor   = unname(metrics_wa_bor),
+  metrics_wa  = unname(metrics_wa)
+)
+
+colnames(metrics_all) <- c("accuracy", "precision", "TPR", "FPR")
+
+round(metrics_all, 3)
+
+```
+
+## 5.4 Probabilistic predictions
+### 5.4.1 Train model
+```{r}
+set.seed(42)
+rf_wa_prob <- ranger::ranger(
+  y = df_train_wa[, target_wa],
+  x = df_train_wa[, predictors_selected_wa],
+  mtry          = 6,
+  min.node.size = 8,
+  num.trees     = 200,
+  probability   = TRUE,
+  seed          = 42
+)
+
+# Probabilistic predictions on test set
+pred_rf_wa_prob <- predict(
+  rf_wa_prob,
+  data = df_test_wa[, predictors_selected_wa]
+)$predictions   # matrix with columns "0" and "1"
+
+# Probability that waterlog.100 == 1 (waterlogged)
+prob_wa <- pred_rf_wa_prob[, "1"]
+
+# Observed test labels
+obs_wa <- df_test_wa[[target_wa]]  # factor("0","1")
+```
+
+```{r}
+# other threshold
+threshold <- 0.3
+
+pred_class_thresh <- ifelse(prob_wa >= threshold, "1", "0") |>
+  factor(levels = c("0", "1"))
+
+cm_thresh <- table(observed = obs_wa, predicted = pred_class_thresh)
+cm_thresh
+
+```
+
+
+### 5.4.2 ROC Curve
+```{r}
+roc_wa <- pROC::roc(response = obs_wa, predictor = prob_wa)
+
+
+plot(
+  roc_wa,
+  legacy.axes = TRUE,          # x-axis = 1 - specificity (i.e. FPR), 0 -> 1
+  xlab = "False positive rate",
+  ylab = "True positive rate",
+  main = "ROC curve for waterlog.100 (tuned RF)")
+
+
+# Plot ROC curve (TPR vs FPR)
+plot(roc_wa, main = "ROC curve for waterlog.100 (tuned RF)")
+
+# Area under the curve
+auc_wa <- pROC::auc(roc_wa)
+auc_wa
+
+```
+*Choice of threshold:
+a) for the infrastructure construction project predicting non-waterloged when it actually is waterlogged (false negative, prediction: 0, reality: 1) would have severe consequences. On the other hand it is less severe if predict waterlogged but it actually isn't (false positives, prediction: 1, reality: 0). In this case, I would choose a higher treshold so that the cases that are hard to predict (around 0.5) get assigned rather to waterlogged (= 1) to minimize false negatives. This would in turn also increase TPR and FPR.
+
+
+
+Save the model object with the reduced set of predictors_all, calibration, and validation data for the subsequent Chapter.
+#```{r}
 # Save relevant data for model testing in the next chapter.
 saveRDS(rf_bor,                   
         here::here("/Users/leand1/agds_report_Leandrastengele/data/rf_for_ph0-10.rds"))
@@ -342,8 +598,7 @@ saveRDS(df_train[, c(target, predictors_selected)],
 
 saveRDS(df_test[, c(target, predictors_selected)],
         here::here("/Users/leand1/agds_report_Leandrastengele/data/val_for_ph0-10.rds"))
-```
-
+#```
 
 
 

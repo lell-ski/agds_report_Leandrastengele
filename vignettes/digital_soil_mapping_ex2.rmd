@@ -571,11 +571,7 @@ plot(
   legacy.axes = TRUE,          # x-axis = 1 - specificity (i.e. FPR), 0 -> 1
   xlab = "False positive rate",
   ylab = "True positive rate",
-  main = "ROC curve for waterlog.100 (tuned RF)")
-
-
-# Plot ROC curve (TPR vs FPR)
-plot(roc_wa, main = "ROC curve for waterlog.100 (tuned RF)")
+  main = "ROC curve for waterlog")
 
 # Area under the curve
 auc_wa <- pROC::auc(roc_wa)

@@ -580,22 +580,3 @@ auc_wa
 ```
 *Choice of threshold: a) for the infrastructure construction project predicting non-waterlogged when it actually is waterlogged (false negative, prediction: 0, reality: 1) would have severe consequences. On the other hand it is less severe if the model predicts waterlogged but it actually isn't (false positives, prediction: 1, reality: 0). In this case, I would choose a lower threshold so that the cases that are hard to predict (around 0.5) get assigned rather to waterlogged (= 1) to minimize false negatives. This would increase both TPR and FPR and with that also the false alarms but on the other hand I catch more true waterlogged sites which is crucial in this case. The threshold could be e.g. around 0.3. b) For the project where waterlogged are unwanted but not crucial, i would select a threshold that focuses maximising correct outputs. then i might have more FP compared to a) but since it is not as critical i accept that as a trade of to maximize overall accuracy. So, the threshold could be around 0.5 or even higher if that results in a higher accuracy. c) analogy: for example in medical uses, if we are talking about catching a severe illness. then you would want to have a lower threshold and rather mark someone as ill so that they get further examined rather than the illness is not detected and worsens until it's too late to treat. On the other hand you might use a higher threshold if a disease is not that severe or treatment is still equally effective in a later station and is very invasive or expensive.*
 
-
-
-
-Save the model object with the reduced set of predictors_all, calibration, and validation data for the subsequent Chapter.
-#```{r}
-# Save relevant data for model testing in the next chapter.
-saveRDS(rf_bor,                   
-        here::here("/Users/leand1/agds_report_Leandrastengele/data/rf_for_ph0-10.rds"))
-
-saveRDS(df_train[, c(target, predictors_selected)],
-        here::here("/Users/leand1/agds_report_Leandrastengele/data/cal_for_ph0-10.rds"))
-
-saveRDS(df_test[, c(target, predictors_selected)],
-        here::here("/Users/leand1/agds_report_Leandrastengele/data/val_for_ph0-10.rds"))
-#```
-
-
-
-

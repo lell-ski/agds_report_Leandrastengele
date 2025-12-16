@@ -167,24 +167,14 @@ Save the model object with the reduced set of predictors_all, calibration, and v
 ```{r}
 # Save relevant data for model testing in the next chapter.
 saveRDS(rf_bor,                   
-        here::here("/Users/leand1/agds_report_Leandrastengele/data/rf_for_ph0-10.rds"))
+        here::here("data/rf_for_ph0-10.rds"))
 
 saveRDS(df_train[, c(target, predictors_selected)],
-        here::here("/Users/leand1/agds_report_Leandrastengele/data/cal_for_ph0-10.rds"))
+        here::here("data/cal_for_ph0-10.rds"))
 
 saveRDS(df_test[, c(target, predictors_selected)],
-        here::here("/Users/leand1/agds_report_Leandrastengele/data/val_for_ph0-10.rds"))
+        here::here("data/val_for_ph0-10.rds"))
 ```
-
-
-
-
-
-
-
-
-
-
 
 
 

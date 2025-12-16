@@ -1402,13 +1402,13 @@ rf_bor</code></pre>
 calibration, and validation data for the subsequent Chapter.</p>
 <pre class="r"><code># Save relevant data for model testing in the next chapter.
 saveRDS(rf_bor,                   
-        here::here(&quot;/Users/leand1/agds_report_Leandrastengele/data/rf_for_ph0-10.rds&quot;))
+        here::here(&quot;data/rf_for_ph0-10.rds&quot;))
 
 saveRDS(df_train[, c(target, predictors_selected)],
-        here::here(&quot;/Users/leand1/agds_report_Leandrastengele/data/cal_for_ph0-10.rds&quot;))
+        here::here(&quot;data/cal_for_ph0-10.rds&quot;))
 
 saveRDS(df_test[, c(target, predictors_selected)],
-        here::here(&quot;/Users/leand1/agds_report_Leandrastengele/data/val_for_ph0-10.rds&quot;))</code></pre>
+        here::here(&quot;data/val_for_ph0-10.rds&quot;))</code></pre>
 </div>
 <div id="report-exercise" class="section level1">
 <h1>5 Report Exercise</h1>

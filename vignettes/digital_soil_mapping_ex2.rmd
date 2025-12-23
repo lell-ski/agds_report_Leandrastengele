@@ -25,6 +25,8 @@ head(df_full) |>
   knitr::kable()
 ```
 
+# 3 Digital Soil mapping (AGDS workflow)
+
 ## 3.2 Preparations
 
 -   Specify target and predictor variables (predictors: only vbls we have spatial coverage)
@@ -330,8 +332,6 @@ gg_wa <- vi_rf_basic_wa |>
 # Display plot
 plot(gg_wa)
 ```
-
-We find that ????????????????? the mean annual precipitation (mt_rr_y) is by far the most important variable in determining soil pH in our model.
 
 ### Variable (predictor) selection
 

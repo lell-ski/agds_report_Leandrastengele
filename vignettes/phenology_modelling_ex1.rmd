@@ -29,6 +29,7 @@ library(GenSA)
 library(terra)
 library(MODISTools)
 library(tidyterra)
+library(leaflet)
 ```
 
 ```{r}
@@ -520,8 +521,6 @@ predicted_phenology <- terra::app(
 Plotting these results show a diverse response across the landscape, with higher elevation locations in the north west of the scene having a later leaf out date (in DOY) then coastal or urban areas (i.e. the greater Boston areas south east in the scene). This is both a reflection of the lapse rate as discussed in Chapter 4 and the urban heat island effect (Zhang, Friedl, and Schaaf 2004).
 
 ```{r}
-library(leaflet)
-
 # set te colour scale manually
 pal <- colorNumeric(
   "magma",

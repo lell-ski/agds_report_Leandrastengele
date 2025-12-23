@@ -9,7 +9,6 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 ```{r}
 library(readr)
 library(knitr)
@@ -19,16 +18,17 @@ library(caret)
 library(pROC)
 ```
 
-
-
 ```{r}
 df_full <- readRDS(here::here("data/df_full.rds"))
 
 head(df_full) |> 
   knitr::kable()
 ```
+
 ## 3.2 Preparations
-- Specify target and predictor variables (predictors: only vbls we have spatial coverage)
+
+-   Specify target and predictor variables (predictors: only vbls we have spatial coverage)
+
 ```{r}
 # Specify target: The pH in the top 10cm (that we wanna predict in the end)
 target <- "ph.0.10"
@@ -40,7 +40,8 @@ cat("The target is:", target,
     "\nThe predictors_all are:", paste0(predictors_all[1:8], sep = ", "), "...")
 ```
 
-- split dataset into training and testing set, remove NA
+-   split dataset into training and testing set, remove NA
+
 ```{r}
 # Split dataset into training and testing sets
 df_train <- df_full |> dplyr::filter(dataset == "calibration")
@@ -62,6 +63,7 @@ cat("For model training, we have a calibration / validation split of: ",
 ```
 
 ## 3.3 Model training
+
 The modelling task is to predict the soil pH in the top 10 cm. Let’s start using the default hyperparameters used by ranger::ranger().
 
 ```{r}
@@ -76,10 +78,11 @@ rf_basic <- ranger::ranger(
 # Print a summary of fitted model
 print(rf_basic)
 ```
-Although we only used the pre-defined parameters, we already get a fairly good out-of-bag (OOB) of 0.45 and a MSE of 0.32 pH units. 
-*This is the step at which you may want to reduce the number of predictors_all to avoid collinearity and the risk of overfitting.*
+
+Although we only used the pre-defined parameters, we already get a fairly good out-of-bag (OOB) of 0.45 and a MSE of 0.32 pH units. *This is the step at which you may want to reduce the number of predictors_all to avoid collinearity and the risk of overfitting.*
 
 ## 3.4 Variable importance
+
 ```{r fig.height=18}
 # Let's run the basic model again but with recording the variable importance
 rf_basic <- ranger::ranger( 
@@ -108,11 +111,13 @@ gg <- vi_rf_basic |>
 # Display plot
 gg
 ```
+
 We find that the mean annual precipitation is by far the most important variable in determining soil pH in our model.
 
 ## 3.5 Variable selection
 
 the “Boruta-Algorithm” - an effective and popular approach to variable selection
+
 ```{r fig.height=18}
 set.seed(42)
 
@@ -163,7 +168,9 @@ rf_bor <- ranger::ranger(
 # quick report and performance of trained model object
 rf_bor
 ```
+
 Save the model object with the reduced set of predictors_all, calibration, and validation data for the subsequent Chapter.
+
 ```{r}
 # Save relevant data for model testing in the next chapter.
 saveRDS(rf_bor,                   
@@ -176,12 +183,12 @@ saveRDS(df_test[, c(target, predictors_selected)],
         here::here("data/val_for_ph0-10.rds"))
 ```
 
-
-
 # 5 Report Exercise
+
 ## 5.1 Simple model
 
-- Specify target and predictor variables (predictors: only vbls we have spatial coverage)
+-   Specify target and predictor variables (predictors: only vbls we have spatial coverage)
+
 ```{r}
 # Specify target: waterlog
 target_wa <- "waterlog.100"
@@ -196,7 +203,8 @@ cat("The target is:", target_wa,
     "\nThe predictors_all are:", paste0(predictors_all[1:8], sep = ", "), "...")
 ```
 
-- split dataset into training and testing set, remove NA
+-   split dataset into training and testing set, remove NA
+
 ```{r}
 # Split dataset into training and testing sets
 df_train_wa <- df_full |> dplyr::filter(dataset == "calibration")
@@ -222,8 +230,8 @@ cat("For model training, we have a calibration / validation split of: ",
     perc_cal_wa, "/", perc_val_wa, "%")
 ```
 
-
 ## Model training
+
 The modelling task is to predict the soil pH in the top 10 cm. Let’s start using the default hyperparameters used by ranger::ranger().
 
 ```{r}
@@ -238,11 +246,13 @@ rf_basic_wa <- ranger::ranger(
 # Print a summary of fitted model
 print(rf_basic_wa)
 ```
-Although we only used the pre-defined parameters, we already get a fairly good out-of-bag (OOB) of 0.45 and a MSE of 0.32 pH units. --> NOT SO GOOD ANYMORE FOR WATERLOG
-*This is the step at which you may want to reduce the number of predictors_all to avoid collinearity and the risk of overfitting.*
 
+**Comment: The OOB prediction error improved compared to the basic model without the inclusion of waterlogged information. From 32.1% to 21.3%.**
 
-# Evaluate simple model (Ch. 9.4.1.2)
+## Evaluate simple model
+
+(Ch. 9.4.1.2)
+
 ```{r}
 # Predictions on test set
 pred_test_wa <- predict(              # predict() returns a prediction obj (not just a vector), which contains i.a. $predictions which is made of 0 (not waterlogged) and 1 (waterlogged)
@@ -285,10 +295,13 @@ metrics_wa <- c(
 )
 metrics_wa
 ```
-*Interpretation: In the confusion matrix we see 70 observed values that are waterlogged (TRUE) and 130 observations that are not waterlogged (FALSE). So TRUE and FALSE are not well balanced. This is 35% True vs. 65% False. This imbalance restricts the comparison of our accuarcy with a random model with acccuarcy 0.5 because this would assume that both cases (T/F) are equally likely to appear. Just predicting the majority class would already lead to an accuracy of 65% and our model reaches 76.5% which isn't that much better. The precision tells us that in 65.7% of predicted waterlogged (true), it is correct. The TPR tells us that among the observed waterlogged sites, we detected 68.5% correctly. From FPR we know that we marked 19% of the sites that are actually not waterlogged (F) incorrectly as waterlogged (T). However, it is important to state that due to the imbalance in observed T/F we should be careful when interpreting the metrics, especially when making interpretations about the True (waterlogged) class, since it is much rarer than the False class.*
 
-### Task 5.2 Variable selection
-## Variable importance
+*Interpretation: In the confusion matrix we see 70 observed values (22+48) that are waterlogged (TRUE) and 130 observations (105+25) that are not waterlogged (FALSE). This is 35% True vs. 65% False. So TRUE and FALSE are not well balanced. This imbalance restricts the comparison of our accuarcy with a random model with acccuracy 0.5 because this would assume that both cases (T/F) are equally likely to appear. Just predicting the majority class would already lead to an accuracy of 65% and our model reaches 76.5% which isn't that much higher. The precision tells us that in 65.7% of predicted waterlogged (true), it is correct. The TPR tells us that among the observed waterlogged sites, we detected 68.5% correctly. From FPR we know that we marked 19% of the sites that are actually not waterlogged (F) incorrectly as waterlogged (T). However, it is important to state that due to the imbalance in observed T/F we should be careful when interpreting the metrics, especially when making interpretations about the True (waterlogged) class, since it is much rarer than the False class.*
+
+## 5.2 Variable selection
+
+### Variable importance
+
 ```{r fig.height=18}
 # Let's run the basic model again but with recording the variable importance
 rf_basic_wa <- ranger::ranger( 
@@ -317,11 +330,13 @@ gg_wa <- vi_rf_basic_wa |>
 # Display plot
 plot(gg_wa)
 ```
-We find that ????????????????? the mean annual precipitation is by far the most important variable in determining soil pH in our model.
 
-## Variable (predictor) selection
+We find that ????????????????? the mean annual precipitation (mt_rr_y) is by far the most important variable in determining soil pH in our model.
+
+### Variable (predictor) selection
 
 the “Boruta-Algorithm” - an effective and popular approach to variable selection
+
 ```{r fig.height=18}
 set.seed(42)
 
@@ -372,9 +387,9 @@ rf_wa_bor <- ranger::ranger(
 # quick report and performance of trained model object
 rf_wa_bor
 ```
-...OOB wurde aber nicht besser!!! (=R^2), sollte steigen
 
-# Repeat the model evaluation (Ch. 9.4.1.2)
+### Repeat the model evaluation (Ch. 9.4.1.2)
+
 ```{r}
 # Predictions on test set
 pred_test_wa_bor <- predict(              # predict() returns a prediction obj (not just a vector), which contains i.a. $predictions which is made of 0 (not waterlogged) and 1 (waterlogged)
@@ -418,7 +433,30 @@ metrics_wa_bor <- c(
 metrics_wa_bor
 ```
 
+### Interpretation 5.2
+
+```{r}
+# comparing metrics
+metrics_wa
+metrics_wa_bor
+```
+
+**Which model generalises better to unseen data?**
+
+*When comparing the test performance, the boruta model generalises better. Though only slightly, all the four metrics improved after the variable selection. The reduction of predictors, in this case, led to more accurate results. The model detected more sites correctly as waterlogged and not waterlogged.*
+
+```{r}
+# comparing OOB
+rf_basic_wa
+rf_wa_bor
+```
+
+**Would the same model choice be made if we considered the OOB prediction error reported as part of the trained model object?**
+
+*From the basic model to the reduced, boruta, model the OOB improved from 21.32% to 20.99%. Also here, the difference is small but seeing that it still improved a bit, i would again prefer the boruta model.*
+
 ## 5.3 Model optimization
+
 ### 5.3.1 5-fold cross-validation
 
 ```{r}
@@ -448,10 +486,11 @@ mod_cv_wa <- caret::train(
 )
 ggplot(mod_cv_wa)
 ```
-*Comment: For the optimization of mtry, the values c(4, sqrt(p), 8) were used where sqrt(p) ~= 6 which is the approach the agds book proposes. for the min.node.size the values c(1, 3, 5, 8, 10, 15, 20) were chosen for optimization. Splitrule = "gini" and metric = "Accuracy" were used for the classification purpose.The final values used for the model with 2000 trees were mtry = 6, splitrule = gini and min.node.size = 8. The accuracy of this best combination is 0.7982814. In the most recent plot there is no clear pattern visible for the different mtry values which leads to the assumption that the model is not really sensitive to the number of predictors selected. However, mtry=6 seems to be the best choice for most node sizes at least in most of the cases.*
 
+*Comment: For the optimization of mtry, the values c(4, sqrt(p), 8) were used where sqrt(p) \~= 6 is the approach the agds book proposes and 4 and 8 were added to have a comparison. For the min.node.size the values c(1, 3, 5, 8, 10, 15, 20) were chosen for optimization. Splitrule = "gini" and metric = "Accuracy" were used for the classification purpose. The final values used for the model with 2000 trees were mtry = 6, splitrule = gini and min.node.size = 8. The accuracy of this best combination is 0.7982814. In the most recent plot mtry = 6 has the overall best performance but there isn't a clear pattern. Also, the mtry = 4 and 8 show no clear pattern. This leads to the assumption that the model is not very sensitive to the number of predictors selected. However, it can still be concluded that mtry=6 seems to be the best choice for most node sizes at least in most of the cases.*
 
 ### 5.3.2 Evaluation
+
 ```{r}
 # Predictions on the test set
 pred_test_cv_wa <- predict(
@@ -495,14 +534,15 @@ metrics_cv_wa <- c(
 print(metrics_cv_wa)   # optimized
 print(metrics_wa_bor)  # before optimization
 print(metrics_wa)      # initial default model
+
 ```
 
 ```{r}
 # get a better overview to compare the models
 metrics_all <- rbind(
-  metrics_cv_wa = unname(metrics_cv_wa),
-  metrics_wa_bor   = unname(metrics_wa_bor),
-  metrics_wa  = unname(metrics_wa)
+  optimized = unname(metrics_cv_wa),
+  boruta   = unname(metrics_wa_bor),
+  basic  = unname(metrics_wa)
 )
 
 colnames(metrics_all) <- c("accuracy", "precision", "TPR", "FPR")
@@ -511,8 +551,12 @@ round(metrics_all, 3)
 
 ```
 
+*When comparing the test performances, the optimized model generalises best compared to the boruta model and the basic model before variable selection (both with default parameters). However, the optimized model improves only very slightly compared to the boruta model with default parameters. In this case it is only one true observation more that was correctly detected by the model. So, when looking strictly at the metrics, we would say the optimized generalises better than the boruta model with default parameters.*
+
 ## 5.4 Probabilistic predictions
+
 ### 5.4.1 Train model
+
 ```{r}
 set.seed(42)
 rf_wa_prob <- ranger::ranger(
@@ -550,8 +594,8 @@ cm_thresh
 
 ```
 
-
 ### 5.4.2 ROC Curve
+
 ```{r}
 roc_wa <- pROC::roc(response = obs_wa, predictor = prob_wa)
 
@@ -568,5 +612,11 @@ auc_wa <- pROC::auc(roc_wa)
 auc_wa
 
 ```
-*Choice of threshold: a) for the infrastructure construction project predicting non-waterlogged when it actually is waterlogged (false negative, prediction: 0, reality: 1) would have severe consequences. On the other hand it is less severe if the model predicts waterlogged but it actually isn't (false positives, prediction: 1, reality: 0). In this case, I would choose a lower threshold so that the cases that are hard to predict (around 0.5) get assigned rather to waterlogged (= 1) to minimize false negatives. This would increase both TPR and FPR and with that also the false alarms but on the other hand I catch more true waterlogged sites which is crucial in this case. The threshold could be e.g. around 0.3. b) For the project where waterlogged are unwanted but not crucial, i would select a threshold that focuses maximising correct outputs. then i might have more FP compared to a) but since it is not as critical i accept that as a trade of to maximize overall accuracy. So, the threshold could be around 0.5 or even higher if that results in a higher accuracy. c) analogy: for example in medical uses, if we are talking about catching a severe illness. then you would want to have a lower threshold and rather mark someone as ill so that they get further examined rather than the illness is not detected and worsens until it's too late to treat. On the other hand you might use a higher threshold if a disease is not that severe or treatment is still equally effective in a later station and is very invasive or expensive.*
 
+*Choice of threshold:*
+
+*a) for the infrastructure construction project predicting non-waterlogged when it actually is waterlogged (false negative, prediction: 0, reality: 1) would have severe consequences. On the other hand it is less severe if the model predicts waterlogged but it actually isn't (false positives, prediction: 1, reality: 0). In this case, I would choose a lower threshold so that the cases that are hard to predict (around 0.5) get assigned rather to waterlogged (= 1) to minimize false negatives. This would increase both TPR and FPR and with that also the false alarms but on the other hand I catch more true waterlogged sites which is crucial in this case. The threshold could be e.g. around 0.3.*
+
+*b) For the project where waterlogged are unwanted but not crucial, i would select a threshold that focuses maximising correct outputs. then i might have more FP compared to a) but since it is not as critical i accept that as a trade of to maximize overall accuracy. So, the threshold could be around 0.5 or even higher if that results in a higher accuracy.*
+
+*c) analogy: for example in medical uses, if we are talking about catching a severe illness. then you would want to have a lower threshold and rather mark someone as ill so that they get treated for sure or further examined rather than the illness is not detected and worsens until it's too late to treat. On the other hand you might use a higher threshold if a treatment is very invasive or expensive and a disease is not severe or treatment is still equally effective in a later station.*

@@ -15,6 +15,7 @@ Error in libgit2::git_signature_default : config value 'user.name' was not found
 
 ```{r}
 #install.packages("phenocamr")
+#install.packages("tidyterra")
 
 # I will use the phenocamr package which 
 # interfaces with the phenocam network API
@@ -26,6 +27,8 @@ library(tidyverse)
 library(dplyr)
 library(GenSA)
 library(terra)
+library(MODISTools)
+library(tidyterra)
 ```
 
 ```{r}
@@ -63,7 +66,7 @@ harvard_phenology <- readr::read_csv(
   )
 ```
 
-Comment for personal Code understanding: The :: in "phenocamr::download_phenocam" specifies where the "download_phenocam" comes from. (idk about this example but) this is very important in terms of shadowing. When theres e.g. the Fn Filter() which is contained in the packages dplyr and Stats and i have loaded both packages, it is unclear from which package i wanna take the filter() fn. therefore i do dplyr::filter().
+**Comment** for personal Code understanding: The :: in "phenocamr::download_phenocam" specifies where the "download_phenocam" comes from. (idk about this example but) this is very important in terms of shadowing. When theres e.g. the Fn Filter() which is contained in the packages dplyr and Stats and i have loaded both packages, it is unclear from which package i wanna take the filter() fn. therefore i do dplyr::filter().
 
 Plot GCC
 
@@ -93,7 +96,7 @@ ggplot(harvard_phenocam_data) +
   )
 ```
 
-implement GDD Fn (cumulative sum of temperatures above Threshhold T0 = 5°C)
+**Implement GDD Fn** (cumulative sum of temperatures above Threshhold T0 = 5°C)
 
 ```{r}
 # return mean daily temperature as well
@@ -130,9 +133,9 @@ harvard_phenology <- harvard_phenology |>
   )
 ```
 
-Comment for personal unserstanding: \|\> (former %\>%) is the pipeline command that defines the order by which commands e.g. on a dataset should be executed. e.g. first filter the dataset, then isolate some values, then sort them etc. It saves the steps of doing the steps individually and after each step creating a new dataset with the new, saved changes (data1, data2, data3, ...).
+**Comment** for personal unserstanding: \|\> (former %\>%) is the pipeline command that defines the order by which commands e.g. on a dataset should be executed. e.g. first filter the dataset, then isolate some values, then sort them etc. It saves the steps of doing the steps individually and after each step creating a new dataset with the new, saved changes (data1, data2, data3, ...).
 
-plot the GDD
+**Plot the GDD**
 
 ```{r}
 # grab only the 2010 value of spring phenology
@@ -312,7 +315,7 @@ prediction <- harvard_temp |>
 print(prediction)
 ```
 
-### *Improvement comment:* 
+### *Improvement comment:*
 
 *I had to pass the 3rd parameter into the model run for 2010 because otherwise the DOY would return N/A. The other parameters (temperature threshold and GDD) were previously adjusted so that, with correct model implementation, they output exactly leave out day 114. If a third parameter is now added and the temperature threshold and GDD remain the same, the result will obviously not be doy 114 again, which is plausible given the context. Or another way to formulate it, it doesn't make sense wanting to obtain the predicted value of 114 with the newly introduced parameter.*
 
@@ -387,7 +390,7 @@ optim_par = GenSA::GenSA(
 print(optim_par)
 ```
 
-### *Improvement comment:* 
+### *Improvement comment:*
 
 *I added a starting parameter and the limits for the 3rd parameter. Trying out a different upper limit and a different starting parameter yielded in differing optimized parameters and Scatterplots of DOY of observed and predicted leaf-out dates (DOY). However, after qualitatively vewing the differing results i didn't find another combination of starting and limit parameter that yielded a significantly better result in the scatterplot. One year fitted better with starting point x and another year fitted worse and i don't believe that the model would improve much by juggling these values. What would be more important is to see how the model would perform on unseen data.*
 
@@ -442,9 +445,27 @@ ggplot(validation) +
 
 Figure 6.3: Scatterplot of observed and predicted leaf-out dates as day-of-year (DOY). A linear regression is overplot as a full dark grey line with confidence intervals shown as a light grey envelope.
 
-### *Improvement comment:* 
+### *Improvement comment:*
 
 *From visually comparing the scatterplots of the original model with my improvement version it looks as if my model has less dots outside the CI and therefore the observed and predicted values agree better in the improvement model.*
+
+## Further improvement ideas (8.2)
+
+### Improvement idea 1: Weighted temperatures
+
+Improvement idea 1 is introduced and commented on during [6.3 Growing degree day model optimization]. The respective paragraphs are clearly recognizable as they are highlighted with headings and in italics.
+
+### Improvement idea 2: Model adapted to latitude
+
+In the current implementation, January is the starting point of the DOY count. This works well for the northern hemisphere. However, for the southern hemisphere July might be a better starting point to reach DOY values that are comparable with the northern hemisphere. The improvement idea is to start the DOY count from the day in the coldest period. For that we would use a rolling mean to find the middle day (i) of the coldest period (n) (here: period n = 31 days). That way the model would be generalized over latitudes and also applicable for the southern hemisphere. The period (n) can be optimized to obtain the model that generalises best.
+
+![Fig. 8.2.1: Sketch of improvement idea 2](images/clipboard-5278190.png)
+
+### Improvement idea 3: Only cumulate in mild periods
+
+Similar to the implemented method the idea is that a few warm days within an otherwise cold period might not contribute a lot to the growth of plants but the model would still add the temperatures into the GCC. So, for example, i have a typically cold January but then there are a few days where there's a lot of sun and temperatures go beyond the threshold. However, this lasts for only a few days and then it's cold again for another 2 weeks and maybe we get another 2-3 days with mild temperatures followed by many successive cold days. So, i would want the model to include only warm days that appear in a generally mild period. This would mean that we would have to implement a condition inside the model where for day i the temperature Ti which is above threshold T0 (here T0 = 5°C) is only cumulated if the previous n days have temperatures Tn already above a specified temperature threshold (e.g. T_mild = 2°C). For example, if there's a day above T_0 it counts towards GCC if the preceding 7 days (n = 7) were above t_mild. Threshold t_mild as well as preceding days (n) can be optimized to obtain the model that generalises best.
+
+![Fig. 8.2.2: Sketch of improvement idea 3](images/clipboard-2666452654.png)
 
 # 6.4 Spatial scaling
 
@@ -534,20 +555,81 @@ leaflet() |>
 
 Figure 6.5: Interactive map of the spatially scaled optimized growing degree model using DAYMET daily mean temperature data for tile 11935, including the greater Boston area in the south-east to the White Mountains in the north-west.
 
-# 8.2 Further optimization ideas
+## 6.4.1. Comparison with Modis MCD12Q2
 
-## Improvement idea 1: Weighted temperatures
+Download and present Modis data according to Chapter 4 Phenology trends.
 
-Improvement idea 1 is introduced and commented on during [6.3 Growing degree day model optimization]. The respective paragraphs are clearly recognizable as they are highlighted with headings and in italics.
+```{r}
+# download and save phenology data
+phenology <- MODISTools::mt_subset(
+  product = "MCD12Q2",
+  lat = 43,
+  lon = -71,
+  band = "Greenup.Num_Modes_01",
+  start = "2012-01-01",
+  end = "2012-12-31",
+  km_lr = 100,
+  km_ab = 100,
+  site_name = "Greater Boston",
+  internal = TRUE,
+  progress = FALSE
+)
+```
 
-## Improvement idea 2: Model adapted to latitude
+```{r}
+# screening of data
+phenology <- phenology |>
+  mutate(
+    value = ifelse(value > 32656, NA, value),
+    value = as.numeric(format(as.Date("1970-01-01") + value, "%j")),
+    value = ifelse (value < 200, value, NA)
+  )
+```
 
-In the current implementation, January is the starting point of the DOY count. This works well for the northern hemisphere. However, for the southern hemisphere July might be a better starting point to reach DOY values that are comparable with the northern hemisphere. The improvement idea is to start the DOY count from the day in the coldest period. For that we would use a rolling mean to find the middle day (i) of the coldest period (n) (here: period n = 31 days). That way the model would be generalized over latitudes and also applicable for the southern hemisphere. The period (n) can be optimized to obtain the model that generalises best.
+```{r}
+phenology_raster <- MODISTools::mt_to_terra(
+  phenology,
+  reproject = TRUE
+)
+```
 
-![Fig. 8.2.1: Sketch of improvement idea 2](images/clipboard-5278190.png)
+```{r}
+ggplot() +
+  tidyterra::geom_spatraster(data = phenology_raster) +
+  scale_fill_viridis_c(
+    na.value = NA,
+    name = "DOY"
+    ) +
+  theme_bw()
+```
 
-## Improvement idea 3: Only cumulate in mild periods
+Figure 6.6: Map of the MODIS MCD12Q2 phenology product for the greater Boston area.
 
-Similar to the implemented method the idea is that a few warm days within an otherwise cold period might not contribute a lot to the growth of plants but the model would still add the temperatures into the GCC. So, for example, i have a typically cold January but then there are a few days where there's a lot of sun and temperatures go beyond the threshold. However, this lasts for only a few days and then it's cold again for another 2 weeks and maybe we get another 2-3 days with mild temperatures followed by many successive cold days. So, i would want the model to include only warm days that appear in a generally mild period. This would mean that we would have to implement a condition inside the model where for day i the temperature Ti which is above threshold T0 (here T0 = 5°C) is only cumulated if the previous n days have temperatures Tn already above a specified temperature threshold (e.g. T_mild = 2°C). For example, if there's a day above T_0 it counts towards GCC if the preceding 7 days (n = 7) were above t_mild. Threshold t_mild as well as preceding days (n) can be optimized to obtain the model that generalises best.
+### Interpretation DAYMET model vs. MODIS MCD12Q2
 
-![Fig. 8.2.2: Sketch of improvement idea 3](images/clipboard-2666452654.png)
+**Creating boxplots to compare statistics**
+
+```{r}
+vals_modis <- as.vector(terra::values(phenology_raster))
+vals_modis <- vals_modis[!is.na(vals_modis)]
+summary(vals_modis)
+boxplot(vals_modis, ylab = "MODIS observations (DOY)", main = "Modis output")
+```
+
+```{r}
+vals_model <- as.vector(terra::values(predicted_phenology))
+vals_model <- vals_model[!is.na(vals_model)]
+summary(vals_model)
+boxplot(vals_model, ylab = "Model leaf-out (DOY)", main = "Model output")
+
+```
+
+Comparing the DAYMET model (Fig. 6.5) that was built in this code with the Modis observations (Fig. 6.6), we can see that the range of DOY values is similar. However, the Modis data has DOY values starting earlier than the DAYMET model. When looking at the Modis boxplot it is visible that these low values are mostly outliers. It is interesting to note that the model has only outliers to the higher end and is right skewed while the Modis observations are not. When looking at the two medians, we see that they are not that much different. The median of the model output is approximately 10d later than the Modis observations. Our model therefore predicts leaf-out-days to be later than observed. A reason for this could be that the threshold T0 above which temperatures get summed up is too high. Another reason could be that the critical GDD value is too high. Finally, it could also be that the temperature weights I introduced in the model optimization process led to the DOY delay. This would mean that i underestimate the importance of warm events that are early in the year. Furthermore it should be noted that the urban heat island effect that is well depicted in the model output is not really visible in the modis output. This difference is most likely due to the model relying solely on temperature data while Modis reports greenness, which might be very noisy in an urban area. So, the model gives me a leaf-out day for every grid cell based on temperature, even if that grid cell is a parking lot and not vegetation. This could be another reason why the urban area looks so different in the two outputs. Furthermore, the spatial resolution of the modis could also have an impact in the urban area where different land cover classes might mix in the coarse resolution. When looking at the overall map, the modis data looks generally more noisy and there is less of a pattern visible than in the model output. This is likely due to the model working with a rather smooth temperature field and solely with temperature as input and not considering other factors that in reality influence leaf-out day and cause variability, such as water availability, different species, frost damage etc.
+
+**Special Year 2010**
+
+```{r}
+print(prediction)
+```
+
+In year 2010 the predicted leaf out day was early because it was an unusually warm year (source: <https://www.nrcc.cornell.edu/services/blog/2011/01/04_2010_recap/index.html>)
